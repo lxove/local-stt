@@ -18,8 +18,21 @@ local fnDownAt, fnUsed, lastTapAt = nil, false, 0
 local rec, recBuf = nil, ""
 local menu = hs.menubar.new()
 
+local BUSY_MAX = 75            -- längsta tid i ⏳ innan inspelaren startas om (s)
+local busyTimer = nil
+
 local function setState(s, note)
   state = s
+  if busyTimer then busyTimer:stop(); busyTimer = nil end
+  if s == "busy" then          -- skydd mot att fastna: döda inspelaren, då går läget till idle och den startar om
+    busyTimer = hs.timer.doAfter(BUSY_MAX, function()
+      busyTimer = nil
+      if state == "busy" then
+        hs.alert.show("Diktering: ingen text på " .. BUSY_MAX .. " s, avbryter", 4)
+        if rec then rec:terminate() else setState("idle") end
+      end
+    end)
+  end
   local icon = ({ idle = "🎙", recording = "🔴", busy = "⏳" })[s]
   if menu then menu:setTitle(icon); menu:setTooltip(note or ("Diktering: " .. s)) end
 end

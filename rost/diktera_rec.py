@@ -40,7 +40,7 @@ def transcribe(audio):
     buf = io.BytesIO(); sf.write(buf, audio, SR, format="WAV")
     req = urllib.request.Request(f"{URL}/transcribe?language={LANG}", data=buf.getvalue(),
                                  headers={"Content-Type": "application/octet-stream"})
-    with urllib.request.urlopen(req, timeout=300) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)["text"]
 
 
