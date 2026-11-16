@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "edge0/edge0_145b",
+  "share": "disabled",
+  "update": "notify",
+  "mcp": {
+    "servers": {
+      "pg": { "type": "remote", "url": "http://pg-mcp.machine-review.internal/mcp", "oauth": false },
+      "manager": { "type": "remote", "url": "http://manager-mcp.machine-review.internal/mcp", "disabled": true }
+    }
+  },
+  "agents": {
+    "title": {
+      "request": { "body": { "chat_template_kwargs": { "enable_thinking": false } } }
+    }
+  },
+  "providers": {
+    "edge0": {
+      "name": "Edge0 (lokal, edge0-infer serve)",
+      "package": "@ai-sdk/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:8080/v1",
+        "apiKey": "none",
+        "timeout": false
+      },
+      "compatibility": {
+        "reasoningField": "reasoning_content",
+        "maxTokensField": "max_tokens"
+      },
+      "models": {
+        "edge0_145b": {
+          "name": "Edge0 145B Q3_K (Metal)",
+          "limit": { "context": 131072, "output": 8192 },
+          "capabilities": {
+            "tools": true,
+            "temperature": true,
+            "reasoning": { "supported": true }
+          }
+        }
+      }
+    }
+  }
+}

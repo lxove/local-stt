@@ -1,0 +1,12 @@
+# Inget ljud, inga modeller, inga miljöer i repot
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.safetensors
+*.pth
+*.gguf
+.venv/
+__pycache__/
+*.bak.*
+.DS_Store

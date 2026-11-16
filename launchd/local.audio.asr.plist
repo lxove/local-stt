@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>local.audio.asr</string>
+	<!-- KB-Whisper large (svenska tal till text) laddad i minnet, HTTP på 127.0.0.1:8092. Används av `lyssna`.
+	     ~3.5 GB i vila (float16, MPS). Logg: ~/Library/Logs/audio-asr.log
+	     Stoppa:  launchctl bootout gui/$(id -u)/local.audio.asr
+	     Starta:  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.audio.asr.plist -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__HOME__/models/audio-venv/bin/python</string>
+		<string>__REPO__/rost/asr_server.py</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HF_HUB_OFFLINE</key>
+		<string>1</string>
+		<key>TRANSFORMERS_OFFLINE</key>
+		<string>1</string>
+		<key>ASR_PORT</key>
+		<string>8092</string>
+	</dict>
+	<key>WorkingDirectory</key>
+	<string>__REPO__/rost</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/audio-asr.log</string>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/audio-asr.log</string>
+</dict>
+</plist>
