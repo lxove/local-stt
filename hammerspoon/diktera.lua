@@ -1,11 +1,14 @@
 -- Lokal diktering: dubbeltryck på fn startar, ett enkeltryck på fn stoppar och klistrar in texten där markören står.
 -- Esc under inspelning avbryter. fn + annan tangent (fn+pil, fn+Delete, fn+F ...) räknas inte som tryck.
--- Inspelning: ~/projects/lokal-ai/rost/diktera_rec.py (varm, styrs via stdin). Tal till text: tjänsten local.audio.asr (KB-Whisper).
+-- Inspelning: rost/diktera_rec.py i repot (varm, styrs via stdin). Tal till text: tjänsten local.audio.asr (KB-Whisper).
 
 local M = {}
 
-local PYTHON = os.getenv("HOME") .. "/models/audio-venv/bin/python"
-local REC = os.getenv("HOME") .. "/projects/lokal-ai/rost/diktera_rec.py"
+-- ~/.hammerspoon/diktera.lua är en symlänk till repot: följ den för att hitta rost/ oavsett var repot ligger
+local REPO = (hs.fs.pathToAbsolute(hs.configdir .. "/diktera.lua") or ""):match("^(.*)/hammerspoon/diktera%.lua$")
+    or (os.getenv("HOME") .. "/projects/lokal-stt")
+local REC = REPO .. "/rost/diktera_rec.py"
+local PYTHON = REPO .. "/.venv/bin/python"   -- install.sh länkar .venv till Python-miljön
 local FN_KEYCODE = 63          -- kVK_Function
 local TAP_MAX = 0.35           -- längsta tid fn får hållas för att räknas som ett tryck (s)
 local DOUBLE_GAP = 0.45        -- längsta tid mellan två tryck för ett dubbeltryck (s)

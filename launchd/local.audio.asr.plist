@@ -10,7 +10,7 @@
 	     Starta:  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.audio.asr.plist -->
 	<key>ProgramArguments</key>
 	<array>
-		<string>__HOME__/models/audio-venv/bin/python</string>
+		<string>__VENV__/bin/python</string>
 		<string>__REPO__/rost/asr_server.py</string>
 	</array>
 	<key>EnvironmentVariables</key>

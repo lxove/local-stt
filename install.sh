@@ -34,25 +34,38 @@ if [ $MODELS = 1 ]; then
     --include "*.json" "model.safetensors" "merges.txt" "vocab.json" "README.md"
 fi
 
+say "Python-miljö -> $REPO/.venv"
+[ -x "$VENV/bin/python" ] || { echo "  $VENV saknas: kör ./install.sh --venv" >&2; exit 1; }
+if [ "$VENV" != "$REPO/.venv" ]; then
+  [ -e "$REPO/.venv" ] && [ ! -L "$REPO/.venv" ] && { echo "  $REPO/.venv finns redan och är ingen länk" >&2; exit 1; }
+  ln -sfn "$VENV" "$REPO/.venv"
+fi
+
 say "Hammerspoon-config -> ~/.hammerspoon"
-mkdir -p "$HOME/.hammerspoon"
-for f in init.lua diktera.lua; do
-  t=$HOME/.hammerspoon/$f
-  if [ -e "$t" ] && [ ! -L "$t" ]; then mv "$t" "$t.bak.$(date +%s)"; echo "  sparade din gamla $f som $f.bak.*"; fi
-  ln -sfn "$REPO/hammerspoon/$f" "$t"
-done
+HS=$HOME/.hammerspoon
+mkdir -p "$HS"
+t=$HS/diktera.lua
+if [ -e "$t" ] && [ ! -L "$t" ]; then mv "$t" "$t.bak.$(date +%s)"; echo "  sparade din gamla diktera.lua som diktera.lua.bak.*"; fi
+ln -sfn "$REPO/hammerspoon/diktera.lua" "$t"
+if [ ! -e "$HS/init.lua" ]; then
+  ln -sfn "$REPO/hammerspoon/init.lua" "$HS/init.lua"; echo "  init.lua länkad"
+elif grep -q 'require("diktera")' "$HS/init.lua"; then
+  echo "  init.lua laddar redan diktera"
+else                         # behåll din egen init.lua och lägg bara till dikteringen sist
+  printf '\n-- lokal-stt: diktering med fn fn\nrequire("hs.ipc")\ndiktera = require("diktera")\ndiktera.start()\n' >> "$HS/init.lua"
+  echo "  lade till diktering sist i din init.lua"
+fi
 [ -d /Applications/Hammerspoon.app ] || echo "  Hammerspoon saknas: brew install --cask hammerspoon"
 
 say "Tjänst: $LABEL (KB-Whisper på 127.0.0.1:8092)"
-[ -x "$VENV/bin/python" ] || { echo "  $VENV saknas: kör ./install.sh --venv" >&2; exit 1; }
 [ -f "$HOME/models/kb-whisper-large/model.safetensors" ] || echo "  varning: KB-Whisper saknas (./install.sh --modeller)"
 mkdir -p "$LA" "$HOME/Library/Logs"
-sed -e "s|__REPO__|$REPO|g; s|__HOME__|$HOME|g" "$REPO/launchd/$LABEL.plist" > "$LA/$LABEL.plist"
+sed -e "s|__REPO__|$REPO|g; s|__HOME__|$HOME|g; s|__VENV__|$VENV|g" "$REPO/launchd/$LABEL.plist" > "$LA/$LABEL.plist"
 plutil -lint "$LA/$LABEL.plist" >/dev/null
 launchctl bootout "gui/$UID_/$LABEL" 2>/dev/null || true
 i=0; while launchctl print "gui/$UID_/$LABEL" >/dev/null 2>&1 && [ $i -lt 30 ]; do sleep 0.5; i=$((i+1)); done
 launchctl bootstrap "gui/$UID_" "$LA/$LABEL.plist"
 echo "  $LABEL laddad"
 
-[ -L "$HOME/.hammerspoon/init.lua" ] && command -v hs >/dev/null && (hs -t 3 -c 'hs.reload()' >/dev/null 2>&1 &) || true
+command -v hs >/dev/null && (hs -t 3 -c 'hs.reload()' >/dev/null 2>&1 &) || true
 say "Klart. Se README.md för behörigheter (Hjälpmedel, Mikrofon) och fn-inställningen."

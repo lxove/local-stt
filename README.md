@@ -1,4 +1,4 @@
-# lokal-ai
+# lokal-stt
 
 Lokal diktering på en Mac (Apple Silicon). Dubbeltryck på **fn** startar, ett tryck stoppar, och texten klistras in där markören står. Talet skrivs ut av Kungliga bibliotekets KB-Whisper large på datorn, och inget ljud lämnar den. Ersätter Apples diktering.
 
@@ -23,18 +23,19 @@ uv tool install huggingface_hub     # ger kommandot hf
 ### 2. Diktering
 
 ```sh
-cd ~/projects/lokal-ai
+git clone https://github.com/lxove/local-stt.git lokal-stt
+cd lokal-stt
 ./install.sh --venv --modeller
 ```
 
 Skriptet gör följande:
 
-- skapar `~/models/audio-venv` från `requirements.txt`
+- skapar `~/models/audio-venv` från `requirements.txt` (annan plats: `AUDIO_VENV=...`) och länkar den som `.venv` i repot
 - laddar ner KB-Whisper large till `~/models/kb-whisper-large`
-- länkar Hammerspoon-konfigurationen till `~/.hammerspoon`
+- länkar `diktera.lua` till `~/.hammerspoon`. Har du redan en `init.lua` läggs dikteringen till sist i den, annars länkas repots.
 - installerar och startar `local.audio.asr`
 
-Skriptet går att köra igen. Utan flaggor gör det bara länkarna och tjänsten.
+Repot kan ligga var som helst. Flyttar du det, kör `./install.sh` igen. Skriptet går att köra igen, och utan flaggor gör det bara länkarna och tjänsten.
 
 ### 3. Behörigheter och fn-tangenten (görs för hand)
 
@@ -95,7 +96,7 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
 hammerspoon/                    init.lua + diktera.lua, länkas till ~/.hammerspoon
 rost/diktera_rec.py             varm inspelningsklient för Hammerspoon
 rost/asr_server.py              ASR-tjänsten (KB-Whisper)
-launchd/local.audio.asr.plist   mall (__HOME__, __REPO__) som install.sh fyller i
+launchd/local.audio.asr.plist   mall (__HOME__, __REPO__, __VENV__) som install.sh fyller i
 requirements.txt                Python-paket för ~/models/audio-venv
 install.sh                      installation
 ```

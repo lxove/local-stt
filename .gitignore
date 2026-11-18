@@ -6,7 +6,7 @@
 *.safetensors
 *.pth
 *.gguf
-.venv/
+.venv
 __pycache__/
 *.bak.*
 .DS_Store
