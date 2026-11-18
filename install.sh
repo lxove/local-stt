@@ -53,7 +53,7 @@ if [ ! -e "$HS/init.lua" ]; then
 elif grep -q 'require("diktera")' "$HS/init.lua"; then
   echo "  init.lua laddar redan diktera"
 else                         # behåll din egen init.lua och lägg bara till dikteringen sist
-  printf '\n-- lokal-stt: diktering med fn fn\nrequire("hs.ipc")\ndiktera = require("diktera")\ndiktera.start()\n' >> "$HS/init.lua"
+  printf '\n-- local-stt: diktering med fn fn\nrequire("hs.ipc")\ndiktera = require("diktera")\ndiktera.start()\n' >> "$HS/init.lua"
   echo "  lade till diktering sist i din init.lua"
 fi
 [ -d /Applications/Hammerspoon.app ] || echo "  Hammerspoon saknas: brew install --cask hammerspoon"

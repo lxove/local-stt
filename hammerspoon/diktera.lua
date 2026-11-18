@@ -6,7 +6,7 @@ local M = {}
 
 -- ~/.hammerspoon/diktera.lua är en symlänk till repot: följ den för att hitta rost/ oavsett var repot ligger
 local REPO = (hs.fs.pathToAbsolute(hs.configdir .. "/diktera.lua") or ""):match("^(.*)/hammerspoon/diktera%.lua$")
-    or (os.getenv("HOME") .. "/projects/lokal-stt")
+    or (os.getenv("HOME") .. "/projects/local-stt")
 local REC = REPO .. "/rost/diktera_rec.py"
 local PYTHON = REPO .. "/.venv/bin/python"   -- install.sh länkar .venv till Python-miljön
 local FN_KEYCODE = 63          -- kVK_Function

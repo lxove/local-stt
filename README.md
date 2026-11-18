@@ -23,8 +23,8 @@ uv tool install huggingface_hub     # ger kommandot hf
 ### 2. Diktering
 
 ```sh
-git clone https://github.com/lxove/local-stt.git lokal-stt
-cd lokal-stt
+git clone https://github.com/lxove/local-stt.git local-stt
+cd local-stt
 ./install.sh --venv --modeller
 ```
 
