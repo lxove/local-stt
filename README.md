@@ -1,4 +1,4 @@
-# lokal-stt
+# local-stt
 
 Lokal diktering på en Mac (Apple Silicon). Dubbeltryck på **fn** startar, ett tryck stoppar, och texten klistras in där markören står. Talet skrivs ut av Kungliga bibliotekets KB-Whisper large på datorn, och inget ljud lämnar den. Ersätter Apples diktering.
 
