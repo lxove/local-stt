@@ -1,5 +1,0 @@
-#!/bin/sh
-# Text till tal (Audio8-TTS-Realistic-Air), se rost/tala.py.
-D=$(cd "$(dirname "$(realpath "$0")")/.." && pwd)
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 exec "${AUDIO_VENV:-$HOME/models/audio-venv}/bin/python" "$D/rost/tala.py" "$@" 2>&1 \
-  | grep -vE "WeightNorm|incorrect regex|fix_mistral_regex|Loading checkpoint"

@@ -1,4 +1,0 @@
-#!/bin/sh
-# Tal till text (KB-Whisper via tjänsten local.audio.asr, annars lokalt), se rost/lyssna.py.
-D=$(cd "$(dirname "$(realpath "$0")")/.." && pwd)
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 exec "${AUDIO_VENV:-$HOME/models/audio-venv}/bin/python" "$D/rost/lyssna.py" "$@"

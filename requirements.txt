@@ -1,8 +1,6 @@
 # ~/models/audio-venv (Python 3.12). Versionerna som det här testades med 2026-11-16 på en M5 Max.
 torch==2.15.0
-torchaudio==2.11.1
 transformers==4.57.6
-accelerate==1.15.0
 safetensors==0.8.0
 soundfile==0.14.0
 librosa==1.0.1

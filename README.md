@@ -1,17 +1,14 @@
 # lokal-ai
 
-Lokal AI på en MacBook Pro M5 Max (128 GB). Röst och språkmodell körs på datorn, och inget ljud lämnar den.
+Lokal diktering på en Mac (Apple Silicon). Dubbeltryck på **fn** startar, ett tryck stoppar, och texten klistras in där markören står. Talet skrivs ut av Kungliga bibliotekets KB-Whisper large på datorn, och inget ljud lämnar den. Ersätter Apples diktering.
 
 | Del | Vad | Var det körs |
 |---|---|---|
-| **Diktering** | Dubbeltryck på fn startar, ett tryck stoppar, och texten klistras in där markören står. Ersätter Apples diktering. | Hammerspoon + `rost/diktera_rec.py` + ASR-tjänsten |
+| **Kortkommando** | fn fn startar, fn stoppar, Esc avbryter, texten klistras in | Hammerspoon (`hammerspoon/diktera.lua`) |
+| **Inspelare** | varm process som spelar in från mikrofonen till minnet | `rost/diktera_rec.py`, startas av Hammerspoon |
 | **ASR-tjänst** | KB-Whisper large (svenska) laddad i minnet, HTTP på `127.0.0.1:8092` | launchd `local.audio.asr` |
-| **`lyssna`** | Tal till text från mikrofon eller fil. Svenska via tjänsten, engelska via ARK-ASR-3B med `--en`. | terminal |
-| **`tala`** | Text till tal med Audio8-TTS-Realistic-Air (23 språk, svenska ingår) och röstkloning | terminal |
-| **Edge0 145B** | Språkmodell, OpenAI-kompatibelt API på `127.0.0.1:8080`, 128K kontext | launchd `local.edge0.serve` |
-| **OpenCode** | Agentharness mot Edge0 145B | `opencode/opencode.json` |
 
-Repot innehåller bara kod och konfiguration. Modellerna (cirka 17 GB för röst och 41 GB för 145B), Python-miljön och apparna installeras enligt nedan.
+Repot innehåller bara kod och konfiguration. Modellen (cirka 3 GB), Python-miljön och Hammerspoon installeras enligt nedan.
 
 ## Installation
 
@@ -23,7 +20,7 @@ brew install --cask hammerspoon
 uv tool install huggingface_hub     # ger kommandot hf
 ```
 
-### 2. Röstdelen
+### 2. Diktering
 
 ```sh
 cd ~/projects/lokal-ai
@@ -33,8 +30,7 @@ cd ~/projects/lokal-ai
 Skriptet gör följande:
 
 - skapar `~/models/audio-venv` från `requirements.txt`
-- laddar ner modellerna till `~/models`
-- länkar `tala` och `lyssna` till `~/.local/bin`
+- laddar ner KB-Whisper large till `~/models/kb-whisper-large`
 - länkar Hammerspoon-konfigurationen till `~/.hammerspoon`
 - installerar och startar `local.audio.asr`
 
@@ -47,34 +43,9 @@ Skriptet går att köra igen. Utan flaggor gör det bara länkarna och tjänsten
 3. Första gången du dikterar frågar macOS om **Mikrofon** för Hammerspoon. Svara ja.
 4. Hammerspoon → Preferences → **Launch at login** (eller `hs -c 'hs.autoLaunch(true)'`).
 
-### 4. Edge0 145B (valfritt)
-
-Bygg edge0 enligt dess egen dokumentation i `~/projects/edge0`:
-
-- edge0-strata: [Build (macOS, Apple Silicon)](https://github.com/Edge0-AI/Edge0/blob/main/edge0-strata/EDGE0.md#build-macos-apple-silicon) (`build-metal/` och `.venv`)
-- edge0-infer: `cmake --preset mac-metal && cmake --build --preset mac-metal`
-
-Hämta modellen och installera tjänsten:
-
-```sh
-hf download Edge0/Edge0-145B-q3k --local-dir ~/models/Edge0-145B-q3k
-./install.sh --edge0
-```
-
-Tjänsten startar `edge0-infer serve` med `--context 131072`. Mallens standard är 32K. 128K är verifierat med nåltest vid cirka 125K tokens (3/3), och minnestoppen är då cirka 30 GB.
-
-### 5. OpenCode (valfritt)
-
-```sh
-cp opencode/opencode.json ~/.config/opencode/opencode.json
-opencode service restart
-```
-
-Konfigurationen pekar OpenCode mot Edge0 på 8080. Titelagenten körs utan thinking, annars köar den framför din första fråga. Den innehåller också två interna MCP-servrar: `pg` (utan auth) och `manager` (avstängd tills auth är löst). Ta bort dem om de inte finns i ditt nätverk.
-
 ## Användning
 
-**Diktering:** dubbeltryck på **fn** startar. Ett "Tink" spelas och 🎙 i menyraden blir 🔴. Ett tryck på **fn** stoppar: ⏳ visas, och sedan klistras texten in. **Esc** avbryter. fn tillsammans med en annan tangent (fn+pil, fn+Delete, fn+F …) räknas inte. Det du hade i urklipp läggs tillbaka efteråt.
+Dubbeltryck på **fn** startar. Ett "Tink" spelas och 🎙 i menyraden blir 🔴. Ett tryck på **fn** stoppar: ⏳ visas, och sedan klistras texten in. **Esc** avbryter. fn tillsammans med en annan tangent (fn+pil, fn+Delete, fn+F …) räknas inte. Det du hade i urklipp läggs tillbaka efteråt.
 
 Inställningar finns överst i `hammerspoon/diktera.lua`:
 
@@ -87,20 +58,6 @@ Inställningar finns överst i `hammerspoon/diktera.lua`:
 
 Byt dikteringsspråk med `ASR_LANG` i `diktera.lua` (Whisper-koder: `sv`, `en`, `no`, `da`, `fi` …).
 
-**Terminal:**
-
-```sh
-lyssna                         # spela in tills Enter, svenska
-lyssna fil.wav                 # transkribera en fil
-lyssna --en                    # engelska (ARK-ASR-3B, laddas lokalt)
-lyssna --spara min-rost.wav    # spara inspelningen också
-
-tala "Hej, hur mår du?"                                   # ny slumpad röst varje gång
-tala "Hej igen" --ref min-rost.wav --ref-text "exakt det som sägs i min-rost.wav"   # klona en röst
-```
-
-För kloning: läs en svensk mening som referens, annars får rösten engelsk brytning. Texten i `--ref-text` måste stämma ordagrant.
-
 ## Så fungerar det
 
 ```
@@ -110,19 +67,17 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
          Hammerspoon ◀──{"text"}── ⌘V där markören står
 ```
 
-- **Inget ljud på disk.** Inspelningen hålls i minnet och skickas som wav över `127.0.0.1`. Det enda undantaget är `lyssna --en` och `--lokalt`, som skapar en tillfällig fil och tar bort den direkt.
-- **Varma processer.** ASR-tjänsten (cirka 3,5 GB i vila och 6 GB under arbete) och inspelningsklienten (några tiotal MB) är alltid igång, så dikteringen svarar på cirka 1 s för 6 s tal. Mikrofonen är bara öppen under inspelning.
-- **float16.** KB-Whisper och ARK-ASR körs i float16. Testat på fem svenska klipp gav det ordagrant samma text som float32, med halva minnet. `tala` körs i float32. `AUDIO_DTYPE=float16|float32` styr båda.
-- **Fjärrkod.** Audio8-TTS och ARK-ASR kräver `trust_remote_code`. Koden i modellmapparna granskades (inga nätverksanrop eller skalkommandon, och codec-filen laddas med `weights_only=True`). Allt körs med `HF_HUB_OFFLINE=1`.
+- **Inget ljud på disk.** Inspelningen hålls i minnet och skickas som wav över `127.0.0.1`.
+- **Varma processer.** ASR-tjänsten (cirka 3,5 GB i vila och 6 GB under arbete) och inspelaren (några tiotal MB) är alltid igång, så dikteringen svarar på cirka 1 s för 6 s tal. Mikrofonen är bara öppen under inspelning.
+- **float16.** KB-Whisper körs i float16 på MPS. Testat på fem svenska klipp gav det ordagrant samma text som float32, med halva minnet.
+- **Tystnad.** Ljud utan tal skickas inte till modellen, eftersom Whisper annars hittar på text eller fastnar i upprepningar.
+- **Offline.** Tjänsten körs med `HF_HUB_OFFLINE=1`.
 
-## Modeller
+## Modell
 
-| Modell | Uppgift | Språk | Disk | Minne | Licens |
-|---|---|---|---:|---:|---|
-| [KBLab/kb-whisper-large](https://huggingface.co/KBLab/kb-whisper-large) | tal till text | svenska (+ Whispers språk) | 3,0 GB | 3,5 GB vila / 6 GB (fp16) | Apache-2.0 |
-| [Edge0/ARK-ASR-3B](https://huggingface.co/Edge0/ARK-ASR-3B) | tal till text | 19 språk, **inte svenska** | 7,6 GB | 11,5 GB (fp16) | Apache-2.0 |
-| [Edge0/Audio8-TTS-Realistic-Air](https://huggingface.co/Edge0/Audio8-TTS-Realistic-Air) | text till tal, kloning | 23 språk inkl. svenska | 5,9 GB | 7,2 GB (fp32) | Apache-2.0 |
-| [Edge0/Edge0-145B-q3k](https://huggingface.co/Edge0/Edge0-145B-q3k) | språkmodell | | 41 GB | ~27–30 GB | se modellkortet |
+| Modell | Språk | Disk | Minne | Licens |
+|---|---|---:|---:|---|
+| [KBLab/kb-whisper-large](https://huggingface.co/KBLab/kb-whisper-large) | svenska (+ Whispers språk) | 3,0 GB | 3,5 GB vila / 6 GB (fp16) | Apache-2.0 |
 
 ## Felsökning
 
@@ -132,18 +87,15 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
 | "ASR-tjänsten svarar inte" | `curl 127.0.0.1:8092/health`, loggen finns i `~/Library/Logs/audio-asr.log`. Starta om med `launchctl kickstart -k gui/$(id -u)/local.audio.asr`. |
 | Tom text | Mikrofonbehörighet för Hammerspoon, eller fel ingång i Systeminställningar → Ljud → Ingång. |
 | Inspelaren har hängt sig | Menyraden 🎙 → *Starta om inspelaren*. |
-| Stänga av tjänster | `launchctl bootout gui/$(id -u)/local.audio.asr` (respektive `local.edge0.serve`) |
+| Stänga av tjänsten | `launchctl bootout gui/$(id -u)/local.audio.asr` |
 
 ## Filer
 
 ```
-bin/tala, bin/lyssna            skalskript, länkas till ~/.local/bin
-rost/asr_server.py              ASR-tjänsten (KB-Whisper)
-rost/diktera_rec.py             varm inspelningsklient för Hammerspoon
-rost/lyssna.py, rost/tala.py    terminalkommandona
-rost/roundtrip_test.py          test: tal av text och sedan text av talet igen (lägger wav i ~/models/audio-test)
 hammerspoon/                    init.lua + diktera.lua, länkas till ~/.hammerspoon
-launchd/*.plist                 mallar (__HOME__, __REPO__, __EDGE0__) som install.sh fyller i
-opencode/opencode.json          OpenCode-konfiguration för Edge0
+rost/diktera_rec.py             varm inspelningsklient för Hammerspoon
+rost/asr_server.py              ASR-tjänsten (KB-Whisper)
+launchd/local.audio.asr.plist   mall (__HOME__, __REPO__) som install.sh fyller i
 requirements.txt                Python-paket för ~/models/audio-venv
+install.sh                      installation
 ```

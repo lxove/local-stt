@@ -4,7 +4,7 @@
 <dict>
 	<key>Label</key>
 	<string>local.audio.asr</string>
-	<!-- KB-Whisper large (svenska tal till text) laddad i minnet, HTTP på 127.0.0.1:8092. Används av `lyssna`.
+	<!-- KB-Whisper large (svenska tal till text) laddad i minnet, HTTP på 127.0.0.1:8092. Används av dikteringen (rost/diktera_rec.py).
 	     ~3.5 GB i vila (float16, MPS). Logg: ~/Library/Logs/audio-asr.log
 	     Stoppa:  launchctl bootout gui/$(id -u)/local.audio.asr
 	     Starta:  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.audio.asr.plist -->
