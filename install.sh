@@ -30,8 +30,9 @@ fi
 if [ $MODELS = 1 ]; then
   say "KB-Whisper large till ~/models (hf download)"
   command -v hf >/dev/null || { echo "hf saknas: uv tool install huggingface_hub" >&2; exit 1; }
+  # ett --include per mönster: med flera värden efter ett --include tolkar hf dem som filnamn och struntar i mönstret
   hf download KBLab/kb-whisper-large --local-dir "$HOME/models/kb-whisper-large" \
-    --include "*.json" "model.safetensors" "merges.txt" "vocab.json" "README.md"
+    --include "*.json" --include "model.safetensors" --include "merges.txt" --include "README.md"
 fi
 
 say "Python-miljö -> $REPO/.venv"
