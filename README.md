@@ -40,7 +40,7 @@ Repot kan ligga var som helst. Flyttar du det, kör `./install.sh` igen. Skripte
 ### 3. Behörigheter och fn-tangenten (görs för hand)
 
 1. Systeminställningar → Integritet och säkerhet → **Hjälpmedel**: slå på **Hammerspoon**. Ladda sedan om konfigurationen via hammaren i menyraden → Reload Config.
-2. Systeminställningar → Tangentbord → "Tryck på 🌐-tangenten för att": välj **Gör ingenting**, annars startar Apples diktering också.
+2. Systeminställningar → Tangentbord → **Diktering**: stäng av. Ställ också in "Tryck på 🌐-tangenten för att" på **Gör ingenting**. Annars startar Apples diktering samtidigt. Kontrollera båda igen efter macOS-uppdateringar, eftersom de kan slås på igen.
 3. Första gången du dikterar frågar macOS om **Mikrofon** för Hammerspoon. Svara ja.
 4. Hammerspoon → Preferences → **Launch at login** (eller `hs -c 'hs.autoLaunch(true)'`).
 
@@ -85,6 +85,7 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
 | Problem | Gör så här |
 |---|---|
 | Inget händer på fn fn | Kontrollera att Hammerspoon har Hjälpmedel och kör Reload Config. Ställ in "Tryck på 🌐" på *Gör ingenting*. |
+| Apples diktering startar igen (ofta efter en macOS-uppdatering) | macOS kan slå på sin egen diktering igen. Stäng av Systeminställningar → Tangentbord → Diktering och ställ in "Tryck på 🌐" på *Gör ingenting* igen. |
 | "ASR-tjänsten svarar inte" | `curl 127.0.0.1:8092/health`, loggen finns i `~/Library/Logs/audio-asr.log`. Starta om med `launchctl kickstart -k gui/$(id -u)/local.audio.asr`. |
 | Tom text | Mikrofonbehörighet för Hammerspoon, eller fel ingång i Systeminställningar → Ljud → Ingång. |
 | Inspelaren har hängt sig | Menyraden 🎙 → *Starta om inspelaren*. |

@@ -68,4 +68,20 @@ launchctl bootstrap "gui/$UID_" "$LA/$LABEL.plist"
 echo "  $LABEL laddad"
 
 command -v hs >/dev/null && (hs -t 3 -c 'hs.reload()' >/dev/null 2>&1 &) || true
-say "Klart. Se README.md för behörigheter (Hjälpmedel, Mikrofon) och fn-inställningen."
+say "macOS-inställningar"
+fn=$(defaults read com.apple.HIToolbox AppleFnUsageType 2>/dev/null || echo "?")
+dict=$(defaults read com.apple.assistant.support "Dictation Enabled" 2>/dev/null || echo "?")
+[ "$fn" = 0 ] || echo "  VARNING: 🌐/fn-tangenten gör något annat än 'Gör ingenting' och krockar med fn fn."
+[ "$dict" = 1 ] && echo "  VARNING: Apples diktering verkar vara påslagen och kan starta samtidigt."
+
+cat <<'EOF'
+
+Klart. Det här måste du göra för hand (se README.md, steg 3):
+  1. Systeminställningar → Integritet och säkerhet → Hjälpmedel: slå på Hammerspoon,
+     och kör sedan Reload Config via hammaren i menyraden.
+  2. Systeminställningar → Tangentbord → Diktering: stäng av.
+     Ställ också in "Tryck på 🌐-tangenten för att" på "Gör ingenting".
+     Kontrollera båda igen efter macOS-uppdateringar, eftersom de kan slås på igen.
+  3. Svara ja när macOS frågar om Mikrofon för Hammerspoon första gången du dikterar.
+  4. Hammerspoon → Preferences → Launch at login.
+EOF
