@@ -1,14 +1,14 @@
 # local-stt
 
-Lokal diktering på en Mac (Apple Silicon). Dubbeltryck på **fn** startar, ett tryck stoppar, och texten klistras in där markören står. Talet skrivs ut av Kungliga bibliotekets KB-Whisper large på datorn, och inget ljud lämnar den. Ersätter Apples diktering.
+Lokal diktering på en Mac (Apple Silicon). Dubbeltryck på **fn** startar, ett tryck stoppar, och texten klistras in där markören står. Talet skrivs ut av Kungliga bibliotekets KB-Whisper (engelska: OpenAIs Whisper) på datorn, och inget ljud lämnar den. Ersätter Apples diktering.
 
 | Del | Vad | Var det körs |
 |---|---|---|
 | **Kortkommando** | fn fn startar, fn stoppar, Esc avbryter, texten klistras in | Hammerspoon (`hammerspoon/diktera.lua`) |
 | **Inspelare** | varm process som spelar in från mikrofonen till minnet | `rost/diktera_rec.py`, startas av Hammerspoon |
-| **ASR-tjänst** | KB-Whisper large (svenska) laddad i minnet, HTTP på `127.0.0.1:8092` | launchd `local.audio.asr` |
+| **ASR-tjänst** | Whisper, en modell åt gången i minnet (KB-Whisper för svenska), HTTP på `127.0.0.1:8092` | launchd `local.audio.asr` |
 
-Repot innehåller bara kod och konfiguration. Modellen (cirka 3 GB), Python-miljön och Hammerspoon installeras enligt nedan.
+Repot innehåller bara kod och konfiguration. Modellerna (cirka 8 GB), Python-miljön och Hammerspoon installeras enligt nedan.
 
 ## Installation
 
@@ -31,7 +31,7 @@ cd local-stt
 Skriptet gör följande:
 
 - skapar `~/models/audio-venv` från `requirements.txt` (annan plats: `AUDIO_VENV=...`) och länkar den som `.venv` i repot
-- laddar ner KB-Whisper large till `~/models/kb-whisper-large`
+- laddar ner KB-Whisper large, whisper-large-v3-turbo och whisper-large-v3 till `~/models`
 - länkar `diktera.lua` till `~/.hammerspoon`. Har du redan en `init.lua` läggs dikteringen till sist i den, annars länkas repots.
 - installerar och startar `local.audio.asr`
 
@@ -57,7 +57,19 @@ Inställningar finns överst i `hammerspoon/diktera.lua`:
 | `START_SOUND` | `"Tink"` | systemljud vid start (`/System/Library/Sounds`), `nil` = tyst |
 | `SOUND_VOLUME` | 0.35 | |
 
-Byt dikteringsspråk med `ASR_LANG` i `diktera.lua` (Whisper-koder: `sv`, `en`, `no`, `da`, `fi` …).
+### Lägen: svenska, engelska, svenska → engelska
+
+**⌃⌥⌘L** växlar läge. Valt läge visas som notis, sparas mellan omstarter och syns vid inspelning om det inte är svenska.
+
+| Läge | Modell | |
+|---|---|---|
+| Svenska | tjänstens standard (`ASR_MODEL`, KB-Whisper) | |
+| English | `whisper-large-v3-turbo` | snabb engelsk diktering |
+| Svenska → English | `whisper-large-v3` | du pratar svenska, texten blir engelska |
+
+Tjänsten har bara en modell i minnet åt gången. När du byter läge laddas nästa modell direkt (under en sekund när filerna ligger i filcachen, några sekunder första gången efter omstart). KB-Whisper kan inte översätta: den skriver svenska oavsett vad den ombeds göra, därför används OpenAIs modeller för engelskan. Lägena står i `MODES` i `diktera.lua`; `model` är en mapp i `~/models`.
+
+Byt standardmodell för svenska med `ASR_MODEL=~/models/kb-whisper-small ./install.sh` (tidigare val behålls annars).
 
 ## Så fungerar det
 
@@ -69,7 +81,7 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
 ```
 
 - **Inget ljud på disk.** Inspelningen hålls i minnet och skickas som wav över `127.0.0.1`.
-- **Varma processer.** ASR-tjänsten (cirka 3,5 GB i vila och 6 GB under arbete) och inspelaren (några tiotal MB) är alltid igång, så dikteringen svarar på cirka 1 s för 6 s tal. Mikrofonen är bara öppen under inspelning.
+- **Varma processer.** ASR-tjänsten (cirka 3,5 GB i vila och 6 GB under arbete med en large-modell) och inspelaren (några tiotal MB) är alltid igång, så dikteringen svarar på cirka 1 s för 6 s tal. Mikrofonen är bara öppen under inspelning.
 - **float16.** KB-Whisper körs i float16 på MPS. Testat på fem svenska klipp gav det ordagrant samma text som float32, med halva minnet.
 - **Tystnad.** Ljud utan tal skickas inte till modellen, eftersom Whisper annars hittar på text eller fastnar i upprepningar.
 - **Offline.** Tjänsten körs med `HF_HUB_OFFLINE=1`.
@@ -79,6 +91,9 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
 | Modell | Språk | Disk | Minne | Licens |
 |---|---|---:|---:|---|
 | [KBLab/kb-whisper-large](https://huggingface.co/KBLab/kb-whisper-large) | svenska (+ Whispers språk) | 3,0 GB | 3,5 GB vila / 6 GB (fp16) | Apache-2.0 |
+| [KBLab/kb-whisper-small](https://huggingface.co/KBLab/kb-whisper-small) | svenska, snabbare men sämre | 0,5 GB | under 1 GB | Apache-2.0 |
+| [openai/whisper-large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo) | engelska m.fl. (översätter dåligt) | 1,6 GB | ~2 GB | MIT |
+| [openai/whisper-large-v3](https://huggingface.co/openai/whisper-large-v3) | engelska m.fl., översätter till engelska | 3,0 GB | 3,5 GB | MIT |
 
 ## Felsökning
 
@@ -96,7 +111,7 @@ fn    ─▶ Hammerspoon ──"stop"───▶ diktera_rec.py ──wav (POST
 ```
 hammerspoon/                    init.lua + diktera.lua, länkas till ~/.hammerspoon
 rost/diktera_rec.py             varm inspelningsklient för Hammerspoon
-rost/asr_server.py              ASR-tjänsten (KB-Whisper)
+rost/asr_server.py              ASR-tjänsten (Whisper, en modell åt gången)
 launchd/local.audio.asr.plist   mall (__HOME__, __REPO__, __VENV__) som install.sh fyller i
 requirements.txt                Python-paket för ~/models/audio-venv
 install.sh                      installation

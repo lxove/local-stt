@@ -1,11 +1,16 @@
 """Håller KB-Whisper (svenska m.fl.) laddad i minnet och transkriberar över HTTP, bara på 127.0.0.1.
 
     POST /transcribe?language=sv     kropp: en ljudfil (wav, flac, ogg ...)  ->  {"text": ..., "seconds": ...}
-    GET  /health                     ->  {"ok": true, "model": ...}
+         &task=translate             översätt till engelska (bara modeller som kan det, t.ex. whisper-large-v3)
+         &model=whisper-large-v3     annan modell än standard: en mapp i ASR_MODELS_DIR (standard ~/models)
+    GET  /load?model=...             ladda en modell i förväg (utan model: standardmodellen)
+    GET  /health                     ->  {"ok": true, "model": ..., "loaded": [...]}
+
+Bara en modell ligger i minnet åt gången: byts modell släpps den förra. Att ladda tar under en sekund.
 
 Startas av launchd (~/Library/LaunchAgents/local.audio.asr.plist). Port: ASR_PORT (standard 8092).
 """
-import io, json, os, threading, time, warnings
+import gc, io, json, os, threading, time, warnings
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -17,20 +22,47 @@ from transformers.utils import logging
 logging.set_verbosity_error(); logging.disable_progress_bar()
 
 MODEL = os.path.expanduser(os.environ.get("ASR_MODEL", "~/models/kb-whisper-large"))
+MODELS_DIR = os.path.expanduser(os.environ.get("ASR_MODELS_DIR", "~/models"))
 PORT = int(os.environ.get("ASR_PORT", "8092"))
 MAX_BYTES = 200 * 1024 * 1024                       # 200 MB ljud räcker långt
 dev = "mps" if torch.backends.mps.is_available() else "cpu"
 
-t = time.time()
-asr = pipeline("automatic-speech-recognition", model=MODEL, dtype=torch.float16 if dev == "mps" else torch.float32,
-               device=dev, chunk_length_s=30)
-# Förbjud tidsstämpel-tokens. På brus genererar Whisper annars bara "<|0.00|><|3.00|>" utan text, och
-# transformers börjar om på samma segment i all oändlighet (GPU:n på ~90 % tills någon dödar processen).
-# (Skickas med i varje anrop: pipelinen har en egen kopia av generation_config.)
-gc = asr.model.generation_config
-SUPPRESS = sorted(set(gc.suppress_tokens or []) | set(range(gc.no_timestamps_token_id + 1, asr.model.config.vocab_size)))
-lock = threading.Lock()                              # en transkribering åt gången på GPU:n
-print(f"asr: {os.path.basename(MODEL)} laddad på {dev} på {time.time()-t:.1f} s, lyssnar på 127.0.0.1:{PORT}", flush=True)
+models = {}                                          # modellnamn -> (pipeline, suppress_tokens), högst en
+lock = threading.Lock()                              # en transkribering (eller laddning) åt gången på GPU:n
+
+
+def load(path):
+    """Laddar en Whisper-modell och släpper den som låg inne förut. Anropas med lock hållet."""
+    name = os.path.basename(path)
+    if name not in models:
+        if models:
+            models.clear(); gc.collect()
+            if dev == "mps":
+                torch.mps.empty_cache()
+        t = time.time()
+        asr = pipeline("automatic-speech-recognition", model=path, dtype=torch.float16 if dev == "mps" else torch.float32,
+                       device=dev, chunk_length_s=30)
+        # Förbjud tidsstämpel-tokens. På brus genererar Whisper annars bara "<|0.00|><|3.00|>" utan text, och
+        # transformers börjar om på samma segment i all oändlighet (GPU:n på ~90 % tills någon dödar processen).
+        # (Skickas med i varje anrop: pipelinen har en egen kopia av generation_config.)
+        g = asr.model.generation_config
+        sup = sorted(set(g.suppress_tokens or []) | set(range(g.no_timestamps_token_id + 1, asr.model.config.vocab_size)))
+        models[name] = (asr, sup)
+        print(f"asr: {name} laddad på {dev} på {time.time()-t:.1f} s", flush=True)
+    return models[name]
+
+
+def model_path(name):
+    """Ett modellnamn från en förfrågan -> en mapp i MODELS_DIR, eller None om det inte är en Whisper-modell där."""
+    if not name:
+        return MODEL
+    p = os.path.join(MODELS_DIR, name)
+    ok = name == os.path.basename(name) and not name.startswith(".") and os.path.isfile(os.path.join(p, "config.json"))
+    return p if ok else None
+
+
+load(MODEL)
+print(f"asr: lyssnar på 127.0.0.1:{PORT}", flush=True)
 
 
 def decode(data: bytes):
@@ -72,8 +104,20 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
     def do_GET(self):
-        if urlparse(self.path).path == "/health":
-            return self.reply(200, {"ok": True, "model": os.path.basename(MODEL), "device": dev})
+        u = urlparse(self.path)
+        if u.path == "/load":
+            path = model_path(parse_qs(u.query).get("model", [""])[0])
+            if path is None:
+                return self.reply(400, {"error": f"okänd modell; den ska ligga som en mapp i {MODELS_DIR}"})
+            try:
+                with lock:
+                    load(path)
+            except Exception as e:                    # noqa: BLE001
+                print(f"asr: kunde inte ladda {path}: {e!r}", flush=True)
+                return self.reply(500, {"error": repr(e)[:300]})
+            return self.reply(200, {"ok": True, "loaded": sorted(models)})
+        if u.path == "/health":
+            return self.reply(200, {"ok": True, "model": os.path.basename(MODEL), "loaded": sorted(models), "device": dev})
         self.reply(404, {"error": "not found"})
 
     def do_POST(self):
@@ -83,7 +127,14 @@ class H(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         if not 0 < n <= MAX_BYTES:
             return self.reply(400, {"error": "skicka en ljudfil som kropp (högst 200 MB)"})
-        lang = parse_qs(u.query).get("language", ["sv"])[0]
+        q = parse_qs(u.query)
+        lang = q.get("language", ["sv"])[0]
+        task = q.get("task", ["transcribe"])[0]
+        path = model_path(q.get("model", [""])[0])
+        if task not in ("transcribe", "translate"):
+            return self.reply(400, {"error": "task ska vara transcribe eller translate"})
+        if path is None:
+            return self.reply(400, {"error": f"okänd modell; den ska ligga som en mapp i {MODELS_DIR}"})
         try:
             audio = decode(self.rfile.read(n))
             t = time.time()
@@ -94,15 +145,16 @@ class H(BaseHTTPRequestHandler):
             # hindrar en upprepningsslinga från att hålla på i minuter
             cap = min(440, int(len(audio) / 16000 * 12) + 24)
             with lock:
+                asr, sup = load(path)
                 t = time.time()
                 dl = Deadline(max(10.0, 2.0 * len(audio) / 16000))   # normalt ~0,2 s per sekund ljud
                 text = asr({"raw": audio, "sampling_rate": 16000},
-                           generate_kwargs={"task": "transcribe", "language": lang, "max_new_tokens": cap, "suppress_tokens": SUPPRESS,
+                           generate_kwargs={"task": task, "language": lang, "max_new_tokens": cap, "suppress_tokens": sup,
                                             "stopping_criteria": StoppingCriteriaList([dl])})["text"].strip()
                 if dev == "mps":
                     torch.mps.empty_cache()           # lämna tillbaka arbetsminnet mellan förfrågningar
             secs = time.time() - t
-            print(f"asr: {len(audio)/16000:.1f} s ljud ({lang}) på {secs:.2f} s, {dl.steps} steg", flush=True)
+            print(f"asr: {len(audio)/16000:.1f} s ljud ({lang}, {task}, {os.path.basename(path)}) på {secs:.2f} s, {dl.steps} steg", flush=True)
             if time.time() > dl.end:
                 print(f"asr: AVBRÖT efter tidsgränsen. peak={np.abs(audio).max():.4f} rms={np.sqrt((audio**2).mean()):.4f} "
                       f"nan={int(np.isnan(audio).sum())} text={text[:200]!r}", flush=True)

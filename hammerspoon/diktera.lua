@@ -1,5 +1,5 @@
 -- Lokal diktering: dubbeltryck på fn startar, ett enkeltryck på fn stoppar och klistrar in texten där markören står.
--- Esc under inspelning avbryter. fn + annan tangent (fn+pil, fn+Delete, fn+F ...) räknas inte som tryck.
+-- Esc under inspelning avbryter. ⌃⌥⌘L växlar läge (se MODES). fn + annan tangent (fn+pil, fn+Delete, fn+F ...) räknas inte som tryck.
 -- Inspelning: rost/diktera_rec.py i repot (varm, styrs via stdin). Tal till text: tjänsten local.audio.asr (KB-Whisper).
 
 local M = {}
@@ -15,6 +15,18 @@ local DOUBLE_GAP = 0.45        -- längsta tid mellan två tryck för ett dubbel
 local ESC_KEYCODE = 53
 local START_SOUND = "Tink"     -- systemljud när inspelningen startar (/System/Library/Sounds), nil = tyst
 local SOUND_VOLUME = 0.35
+local MODE_KEY = { { "ctrl", "alt", "cmd" }, "L" }   -- växlar läge
+local ASR_URL = "http://127.0.0.1:8092"
+-- Lägen i den ordning ⌃⌥⌘L går igenom dem. model = mapp i ~/models (nil = tjänstens standard, KB-Whisper).
+-- Tjänsten har bara en modell i minnet åt gången och laddar nästa direkt när du byter läge.
+local MODES = {
+  { id = "sv",    name = "Svenska",           badge = "",      lang = "sv" },
+  { id = "en",    name = "English",           badge = "EN",    lang = "en", model = "whisper-large-v3-turbo" },
+  { id = "sv-en", name = "Svenska → English", badge = "SV→EN", lang = "sv", task = "translate", model = "whisper-large-v3" },
+}
+local modeIdx = 1
+for i, m in ipairs(MODES) do if m.id == hs.settings.get("diktera.mode") then modeIdx = i end end   -- sparas mellan omstarter
+local function mode() return MODES[modeIdx] end
 
 local state = "idle"           -- idle | recording | busy
 local fnDownAt, fnUsed, lastTapAt = nil, false, 0
@@ -36,7 +48,7 @@ local function setState(s, note)
       end
     end)
   end
-  local icon = ({ idle = "🎙", recording = "🔴", busy = "⏳" })[s]
+  local icon = ({ idle = "🎙", recording = "🔴", busy = "⏳" })[s] .. mode().badge
   if menu then menu:setTitle(icon); menu:setTooltip(note or ("Diktering: " .. s)) end
 end
 
@@ -94,7 +106,10 @@ local function onTap()
         local snd = hs.sound.getByName(START_SOUND)
         if snd then snd:volume(SOUND_VOLUME):play() end
       end
-      setState("recording", "Spelar in – tryck fn för att sluta, Esc för att avbryta"); send("start")
+      local m = mode()
+      if modeIdx ~= 1 then hs.alert.show("🔴 " .. m.name, 1) end
+      setState("recording", "Spelar in – tryck fn för att sluta, Esc för att avbryta")
+      send(table.concat({ "start", m.lang, m.task or "transcribe", m.model }, " "))
     else
       lastTapAt = now
     end
@@ -126,12 +141,29 @@ M.tap = hs.eventtap.new({ hs.eventtap.event.types.flagsChanged, hs.eventtap.even
   return false
 end)
 
+local function preload()       -- ladda lägets modell i tjänsten nu, så att första dikteringen inte väntar
+  hs.http.asyncGet(ASR_URL .. "/load?model=" .. (mode().model or ""), nil, function(code, body)
+    if code ~= 200 then hs.alert.show("Diktering: kunde inte ladda " .. (mode().model or "standardmodellen") .. " (" .. tostring(code) .. ")", 4) end
+  end)
+end
+
+local function nextMode()
+  modeIdx = modeIdx % #MODES + 1
+  hs.settings.set("diktera.mode", mode().id)
+  hs.alert.show("Diktering: " .. mode().name, 1.5)
+  setState(state)
+  preload()
+end
+
 function M.start()
   setState("idle")
+  M.modeKey = hs.hotkey.bind(MODE_KEY[1], MODE_KEY[2], nextMode)
+  preload()
   if menu then
     menu:setMenu(function() return {
       { title = "Diktering: dubbeltryck fn startar, fn stoppar, Esc avbryter", disabled = true },
-      { title = "Status: " .. state, disabled = true },
+      { title = "Status: " .. state .. ", läge: " .. mode().name, disabled = true },
+      { title = "Byt läge (⌃⌥⌘L)", fn = nextMode },
       { title = "-" },
       { title = "Starta om inspelaren", fn = function() if rec then rec:terminate() else startRecorder() end end },
     } end)

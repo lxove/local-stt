@@ -3,9 +3,11 @@
 #
 #   ./install.sh            Hammerspoon-config och ASR-tjänsten (förutsätter modell och venv)
 #   ./install.sh --venv     skapa/uppdatera ~/models/audio-venv från requirements.txt först
-#   ./install.sh --modeller ladda också ner KB-Whisper large (~3 GB) med hf
+#   ./install.sh --modeller ladda också ner modellerna med hf: KB-Whisper large (~3 GB, svenska),
+#                           whisper-large-v3-turbo (~1,6 GB, engelska) och whisper-large-v3 (~3 GB, svenska → engelska)
 #
 # Miljö: AUDIO_VENV (standard ~/models/audio-venv)
+#        ASR_MODEL  tjänstens standardmodell (standard: den redan installerade, annars ~/models/kb-whisper-large)
 set -eu
 REPO=$(cd "$(dirname "$0")" && pwd)
 VENV=${AUDIO_VENV:-$HOME/models/audio-venv}
@@ -28,11 +30,13 @@ if [ $VENV_FLAG = 1 ]; then
 fi
 
 if [ $MODELS = 1 ]; then
-  say "KB-Whisper large till ~/models (hf download)"
   command -v hf >/dev/null || { echo "hf saknas: uv tool install huggingface_hub" >&2; exit 1; }
-  # ett --include per mönster: med flera värden efter ett --include tolkar hf dem som filnamn och struntar i mönstret
-  hf download KBLab/kb-whisper-large --local-dir "$HOME/models/kb-whisper-large" \
-    --include "*.json" --include "model.safetensors" --include "merges.txt" --include "README.md"
+  for repo in KBLab/kb-whisper-large openai/whisper-large-v3-turbo openai/whisper-large-v3; do
+    say "${repo#*/} till ~/models (hf download)"
+    # ett --include per mönster: med flera värden efter ett --include tolkar hf dem som filnamn och struntar i mönstret
+    hf download "$repo" --local-dir "$HOME/models/${repo#*/}" \
+      --include "*.json" --include "model.safetensors" --include "merges.txt" --include "README.md"
+  done
 fi
 
 say "Python-miljö -> $REPO/.venv"
@@ -58,10 +62,15 @@ else                         # behåll din egen init.lua och lägg bara till dik
 fi
 [ -d /Applications/Hammerspoon.app ] || echo "  Hammerspoon saknas: brew install --cask hammerspoon"
 
-say "Tjänst: $LABEL (KB-Whisper på 127.0.0.1:8092)"
-[ -f "$HOME/models/kb-whisper-large/model.safetensors" ] || echo "  varning: KB-Whisper saknas (./install.sh --modeller)"
+say "Tjänst: $LABEL (Whisper på 127.0.0.1:8092)"
+# behåll standardmodellen från en tidigare installation om ASR_MODEL inte anges
+MODEL=${ASR_MODEL:-$(plutil -extract EnvironmentVariables.ASR_MODEL raw "$LA/$LABEL.plist" 2>/dev/null || echo "$HOME/models/kb-whisper-large")}
+echo "  standardmodell: $MODEL"
+for m in "$MODEL" "$HOME/models/whisper-large-v3-turbo" "$HOME/models/whisper-large-v3"; do
+  [ -f "$m/model.safetensors" ] || echo "  varning: $m saknas (./install.sh --modeller)"
+done
 mkdir -p "$LA" "$HOME/Library/Logs"
-sed -e "s|__REPO__|$REPO|g; s|__HOME__|$HOME|g; s|__VENV__|$VENV|g" "$REPO/launchd/$LABEL.plist" > "$LA/$LABEL.plist"
+sed -e "s|__REPO__|$REPO|g; s|__HOME__|$HOME|g; s|__VENV__|$VENV|g; s|__MODEL__|$MODEL|g" "$REPO/launchd/$LABEL.plist" > "$LA/$LABEL.plist"
 plutil -lint "$LA/$LABEL.plist" >/dev/null
 launchctl bootout "gui/$UID_/$LABEL" 2>/dev/null || true
 i=0; while launchctl print "gui/$UID_/$LABEL" >/dev/null 2>&1 && [ $i -lt 30 ]; do sleep 0.5; i=$((i+1)); done

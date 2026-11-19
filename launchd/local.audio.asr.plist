@@ -4,8 +4,9 @@
 <dict>
 	<key>Label</key>
 	<string>local.audio.asr</string>
-	<!-- KB-Whisper large (svenska tal till text) laddad i minnet, HTTP på 127.0.0.1:8092. Används av dikteringen (rost/diktera_rec.py).
-	     ~3.5 GB i vila (float16, MPS). Logg: ~/Library/Logs/audio-asr.log
+	<!-- Whisper-tjänst (tal till text) på 127.0.0.1:8092. Används av dikteringen (rost/diktera_rec.py).
+	     Standardmodell: ASR_MODEL (KB-Whisper). En modell i minnet åt gången, ~3.5 GB för large (float16, MPS).
+	     Logg: ~/Library/Logs/audio-asr.log
 	     Stoppa:  launchctl bootout gui/$(id -u)/local.audio.asr
 	     Starta:  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.audio.asr.plist -->
 	<key>ProgramArguments</key>
@@ -19,6 +20,8 @@
 		<string>1</string>
 		<key>TRANSFORMERS_OFFLINE</key>
 		<string>1</string>
+		<key>ASR_MODEL</key>
+		<string>__MODEL__</string>
 		<key>ASR_PORT</key>
 		<string>8092</string>
 	</dict>
